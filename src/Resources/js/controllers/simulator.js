@@ -146,7 +146,6 @@
                             url: $rootScope.API.player,
                             data: {key: party.activeFleet.API, party: party.title, fleet: party.activeFleet.ID}
                         }).then(function (response) {
-                            console.log(response);
                             if (response.data.data !== void 0) {
                                 $scope.hydrators.parties.hydrateFleetFromAPI(response.data.party, response.data.fleet, response.data.data.defender);
 

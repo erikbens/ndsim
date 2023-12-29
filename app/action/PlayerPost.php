@@ -7,6 +7,7 @@ use Predis\Client;
 use OGetIt\Exception\ApiException;
 use OGetIt\Exception\CurlException;
 use OGetIt\OGetIt;
+use OGetIt\Report\SpyReport\SpyReport;
 
 class PlayerPost extends ActionType
 {
@@ -72,10 +73,10 @@ class PlayerPost extends ActionType
 		$user = $pass = false;
 
 		//Define OGetIt to do all the report processing
-		/*$ogetit = new OGetIt($uni, $lang, $this->Main()->config->get('ogame:api'));
+		$ogetit = new OGetIt($uni, $lang, $this->Main()->config->get('ogame:api'));
 		$ogetit->useHttps();
 
-		try {
+		/*try {
 			$data = $ogetit->getSpyReport($srkey, $user, $pass);
 
 			$redisKey = "trashsim-server-$lang-$uni";
@@ -114,16 +115,42 @@ class PlayerPost extends ActionType
                 if ($httpcode == 200)
                 {
                     $resultData = json_decode($result, true);
-                    if ($resultData['RESULT_CODE'] == 1000) {
+                    if ($resultData['RESULT_CODE'] === 1000) {
+                        $data = $resultData['RESULT_DATA'];
+
+                        $redisKey = "trashsim-server-$lang-$uni";
+                        $client = new Client($redisKey);
+
+                        if ($client->exists($redisKey)) {
+                            $serverdata = $client->get($redisKey);
+                        } else {
+                            try {
+                                $serverdata = $ogetit->getServerData($user, $pass);
+                                $serverdata = $serverdata !== false ? json_encode($serverdata) : false;
+                            } catch (\Exception $e) {
+                                $serverdata = false;
+                            }
+
+                            if ($serverdata !== false) {
+                                $client->set($redisKey, $serverdata);
+                                $client->expire($redisKey, 60 * 60 * 24); //The key expires after 1 day
+                            }
+                        }
+
                         //Set elapsed execution time
                         $time_elapsed_secs = microtime(true) - $start;
+
                         //Set template data
-                        return array(
-                            'data' => $resultData['RESULT_DATA'],
+                        $playerData = array(
+                            'data' => SpyReport::createSpyReport($data),
                             'party' => $variables['party'],
                             'fleet' => $variables['fleet'],
                             'time' => $time_elapsed_secs
                         );
+
+                        if ($serverdata !== false) $playerData['server'] = json_decode($serverdata);
+
+                        return ["playerData" => $playerData];
                     } else {
                         throw new ApiException($resultData['RESULT_CODE']);
                     }
